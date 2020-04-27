@@ -1,0 +1,96 @@
+---
+title: "Box-Cox Transformationen"
+subtitle: "Untertitel???"
+author: "Thomas Klebel & Daniel Kreimer"
+date: "2020-05-26"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{r setup, include=FALSE}
+options(htmltools.dir.version = FALSE)
+knitr::opts_chunk$set(dpi = 300, dev = "svg")
+library(tidyverse)
+```
+
+
+
+class: center, middle
+
+# Motivation
+
+
+---
+class: center, middle, inverse
+
+# Mathematische Grundlagen
+
+---
+
+
+
+# Grundlagen der Transformation
+
+$$1+1 = 3$$
+
+
+---
+
+# Vergleich der Verteilungen I
+
+
+```{r}
+# Simluierte Werte
+df <- tibble(y = rchisq(n = 1000, df = 10),
+             y_log  = log(y),
+             x = y + rnorm(1000, mean = 0, sd = 20),
+             y_best = (y^.263 - 1)/.263)
+
+```
+
+
+
+```{r, echo=FALSE, fig.width=8, fig.height=4}
+plot_them <- function(df) {
+  df %>%
+    select(-x) %>%
+    pivot_longer(everything()) %>%
+    ggplot(aes(value, colour = name)) +
+    geom_freqpoly(bins = 50) +
+    theme_bw()
+}
+
+ggplot(df, aes(y)) +
+  geom_freqpoly(bins = 40) +
+  theme_bw()
+
+```
+
+
+
+---
+
+# Vergleich der Verteilungen II
+
+
+```{r, fig.asp=.5, echo=FALSE}
+plot_them(df)
+```
+
+
+
+---
+class: inverse, center, middle
+
+
+# Verbesserung durch Transformation
+
+---
+
+# Praktisches Modell
+
