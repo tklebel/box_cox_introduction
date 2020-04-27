@@ -2,3 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+
+*.html
+libs
+box_cox_talk_files
