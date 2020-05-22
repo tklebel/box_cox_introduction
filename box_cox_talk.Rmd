@@ -7,28 +7,87 @@ output:
   xaringan::moon_reader:
     lib_dir: libs
     nature:
-      highlightStyle: github
+      highlightStyle: zenburn
       highlightLines: true
       countIncrementalSlides: false
 ---
 
 ```{r setup, include=FALSE}
 options(htmltools.dir.version = FALSE)
-knitr::opts_chunk$set(dpi = 300, dev = "svg")
+knitr::opts_chunk$set(dev = "svg")
+knitr::opts_knit$set(global.par = TRUE)
+par(mar = c(2, 2, 1.5, 2))
+
+
+library(MASS)
 library(tidyverse)
+theme_set(theme_bw())
+
+library(car)
+data(Salaries)
 ```
 
 
 
-class: center, middle
-
 # Motivation
+
+Verletzung der **Annahme B4** im Regressionsmodell: 
+
+- B4: "(Normalverteilung) Die Störgrößen $u_t$ sind normalverteilt."
+
+```{r, echo=FALSE, fig.height=4.5, fig.width=8}
+ggplot(Salaries, aes(salary)) +
+  geom_histogram(bins = 25) +
+  labs(x = NULL)
+```
+
+
+
+---
+
+# Beispiel: Einkommen von Uni-Professoren
+
+Datensatz 'Salaries' (aus dem Package 'car')
+``` {r}
+library(car)
+data(Salaries)
+
+```
+
+
+```{r}
+head(Salaries)
+```
+
+
+---
+
+# Modellspezifikation
+
+```{r}
+model <- lm(salary ~ rank + yrs.service + yrs.since.phd +
+              discipline, data = Salaries)
+broom::tidy(summary(model))
+
+broom::glance(summary(model))
+```
+
+---
+# Prüfung der NV-Annahme der Residuen
+QQ-Plot: visualisiert die theoretische Position der Residuen, unter der Annahme der Normalverteilung, und stellt diese als Gerade dar. Darauf werden die beobachteten Residuen des Modells gelegt. 
+
+
+
+```{r, echo=TRUE, fig.height=3.7, fig.width=6}
+plot(model, 2)
+```
 
 
 ---
 class: center, middle, inverse
 
 # Mathematische Grundlagen
+
 
 ---
 
@@ -46,10 +105,11 @@ mit $\epsilon \sim N(0, \sigma_\epsilon^2)$ und
 $$Y_i^{(\lambda)} =
     \begin{cases}
       \frac{Y_i^{\lambda} - 1}{\lambda}  & \text{wenn}\ \lambda \neq 0 \\
+       \\
       log(Y_i) & \text{wenn}\ \lambda = 0
     \end{cases}$$
 
-Bedingung: Alle Y-Werte müssen positiv sein.
+Bedingung: Alle Y-Werte müssen positiv sein. 
 
 ---
 
@@ -59,28 +119,16 @@ Bedingung: Alle Y-Werte müssen positiv sein.
 ```{r}
 # Simluierte Werte
 df <- tibble(y = rchisq(n = 1000, df = 10),
-             y_log  = log(y),
-             x = y + rnorm(1000, mean = 0, sd = 20),
-             y_best = (y^.263 - 1)/.263)
+             x = y + rnorm(1000, mean = 0, sd = 10))
 
 ```
 
 
 
 ```{r, echo=FALSE, fig.width=8, fig.height=4}
-plot_them <- function(df) {
-  df %>%
-    select(-x) %>%
-    pivot_longer(everything()) %>%
-    ggplot(aes(value, colour = name)) +
-    geom_freqpoly(bins = 50) +
-    theme_bw()
-}
-
 ggplot(df, aes(y)) +
   geom_freqpoly(bins = 40) +
   theme_bw()
-
 ```
 
 
@@ -92,6 +140,20 @@ ggplot(df, aes(y)) +
 gganimate grafik mit sich veränderndem lambda (ev. shiny für demo)
 
 ```{r, fig.asp=.5, echo=FALSE}
+df <- tibble(y = rchisq(n = 1000, df = 10),
+             y_log  = log(y),
+             x = y + rnorm(1000, mean = 0, sd = 20),
+             y_best = (y^.263 - 1)/.263)
+
+plot_them <- function(df) {
+  df %>%
+    select(-x) %>%
+    pivot_longer(everything()) %>%
+    ggplot(aes(value, colour = name)) +
+    geom_freqpoly(bins = 50) +
+    theme_bw()
+}
+
 plot_them(df)
 ```
 
@@ -103,7 +165,80 @@ class: inverse, center, middle
 
 # Verbesserung durch Transformation
 
+
+
+---
+class: center, middle, inverse
+
+# Praktisches Beispiel 2
+
 ---
 
-# Praktisches Modell
+# Praktisches Beispiel 2
+
+`car::boxCox` zeigt standardmäßig via MLS berechnete $\lambda$ Werte im 95% Konfidenzintervall.
+```{r, echo=FALSE}
+par(mar = c(3, 4, 1, 2))
+```
+
+```{r, fig.width=6, fig.height=2.5}
+bc <- car::boxCox(model)
+best.lambda <- bc$x[which(bc$y==max(bc$y))]
+best.lambda
+```
+
+
+---
+# Transformieren der abhängigen Variable
+
+```{r}
+transform_box_cox <- function(y, lambda) {
+  (y ^ lambda - 1)/lambda
+}
+
+Salaries$salary_t <- transform_box_cox(Salaries$salary, best.lambda)
+```
+
+```{r, echo=FALSE, fig.height=4}
+Salaries %>% 
+  pivot_longer(starts_with("salary")) %>% 
+  ggplot(aes(value)) +
+  geom_freqpoly(bins = 12) +
+  facet_wrap(~name, scales = "free_x", nrow = 1) +
+  labs(x = NULL, y = NULL)
+```
+
+---
+# Neue Folie
+
+```{r}
+new_model <- lm(salary_t ~ rank + yrs.service + yrs.since.phd + 
+                  discipline, data = Salaries)
+summary(new_model)
+
+```
+
+
+---
+# QQ-Plot
+Verbesserte Normalverteilung der Residuen bei transformiertem Y. 
+```{r, echo=FALSE}
+par(mar = c(2, 2, 1.5, 2))
+```
+
+```{r, fig.width=6, fig.height=4}
+plot(new_model, 2)
+```
+
+
+---
+# Varianz der Residuen
+
+```{r}
+summary(model)$sigma
+summary(new_model)$sigma
+```
+
+
+
 
