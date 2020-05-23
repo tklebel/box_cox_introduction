@@ -19,8 +19,8 @@ knitr::opts_knit$set(global.par = TRUE)
 par(mar = c(2, 2, 1.5, 2))
 
 
-library(MASS)
 library(tidyverse)
+library(gganimate)
 theme_set(theme_bw())
 
 library(car)
@@ -42,6 +42,15 @@ ggplot(Salaries, aes(salary)) +
 ```
 
 
+
+---
+# Box-Cox-Modell als Heuristik
+
+
+> We shall choose $\lambda$ partly in the light of the information provided by the data and partly from general considerations of simplicity, ease of interpretation, etc. For instance, it would be quite possible for the formal analysis to show that say $\sqrt{y}$ is the best scale for normality and constancy of variance, but for us to decide that there are compelling arguments of ease of interpretation for working say with $log(y)$. [...] the method developed below for finding a transformation is useful as a guide, but is, of course, not to be followed blindly. (p.213)
+
+Ziel der Transformation:
+> The [Box-Cox-Transformation] seeks to achieve simultaneously a model with (a) simple structure for the expectations, (b) constant variance and (c) normal distributions. (p. 226)
 
 ---
 
@@ -86,7 +95,7 @@ plot(model, 2)
 ---
 class: center, middle, inverse
 
-# Mathematische Grundlagen
+# Mathematische Grundlagen der Transformation
 
 
 ---
@@ -113,21 +122,24 @@ Bedingung: Alle Y-Werte müssen positiv sein.
 
 ---
 
-# Vergleich der Verteilungen I
+# Vergleich der Verteilungen (1)
+
+```{r, echo=FALSE}
+set.seed(202005)
+```
 
 
 ```{r}
 # Simluierte Werte
-df <- tibble(y = rchisq(n = 1000, df = 10),
-             x = y + rnorm(1000, mean = 0, sd = 10))
-
+df <- data.frame(y = rchisq(n = 500, df = 8))
 ```
 
 
 
 ```{r, echo=FALSE, fig.width=8, fig.height=4}
 ggplot(df, aes(y)) +
-  geom_freqpoly(bins = 40) +
+  geom_density() + 
+  # geom_freqpoly(bins = 40) +
   theme_bw()
 ```
 
@@ -135,71 +147,116 @@ ggplot(df, aes(y)) +
 
 ---
 
-# Vergleich der Verteilungen II
+# Vergleich der Verteilungen (2)
+![](test.gif)
 
-gganimate grafik mit sich veränderndem lambda (ev. shiny für demo)
 
-```{r, fig.asp=.5, echo=FALSE}
-df <- tibble(y = rchisq(n = 1000, df = 10),
-             y_log  = log(y),
-             x = y + rnorm(1000, mean = 0, sd = 20),
-             y_best = (y^.263 - 1)/.263)
 
-plot_them <- function(df) {
-  df %>%
-    select(-x) %>%
-    pivot_longer(everything()) %>%
-    ggplot(aes(value, colour = name)) +
-    geom_freqpoly(bins = 50) +
-    theme_bw()
-}
+---
+# Berechnung von $\lambda$ (1)
 
-plot_them(df)
+```{r}
+df <- df %>% 
+  mutate(x = y + rnorm(500, mean = 0, sd = 8))
+```
+
+```{r, echo=FALSE, fig.width=7, fig.height=4, message=FALSE}
+corr <- round(cor(df$x, df$y), 2)
+label <- sprintf("~ rho == %0.2f", corr)
+
+ggplot(df, aes(x, y)) +
+  geom_point() +
+  geom_smooth() +
+  annotate("text", x = -10, y = 15, parse = TRUE, size = 5,
+           label = label)
+```
+
+---
+# Berechnung von $\lambda$ (2)
+
+```{r}
+m1 <- lm(y ~ x, data = df)
+summary(m1)
 ```
 
 
-
 ---
-class: inverse, center, middle
+# Berechnung von $\lambda$ (3)
 
-
-# Verbesserung durch Transformation
-
-
-
----
-class: center, middle, inverse
-
-# Praktisches Beispiel 2
-
----
-
-# Praktisches Beispiel 2
-
-`car::boxCox` zeigt standardmäßig via MLS berechnete $\lambda$ Werte im 95% Konfidenzintervall.
+`car::boxCox` berechnet $\lambda$ via Maximum-Likelihood-Schätzung (basierend auf den Residuen)
 ```{r, echo=FALSE}
 par(mar = c(3, 4, 1, 2))
 ```
 
 ```{r, fig.width=6, fig.height=2.5}
-bc <- car::boxCox(model)
-best.lambda <- bc$x[which(bc$y==max(bc$y))]
+bc <- car::boxCox(m1)
+best.lambda <- bc$x[which(bc$y == max(bc$y))]
 best.lambda
 ```
 
 
+
+
+
 ---
-# Transformieren der abhängigen Variable
+# Neues Modell mit Transformation (1)
 
 ```{r}
 transform_box_cox <- function(y, lambda) {
   (y ^ lambda - 1)/lambda
 }
 
+df <- mutate(df, y_trans = transform_box_cox(y, best.lambda))
+```
+
+```{r, echo=FALSE, fig.height=3.5, fig.width=7}
+df %>% 
+  pivot_longer(c(y, y_trans)) %>% 
+  ggplot(aes(value, fill = name)) +
+  geom_density(alpha = .5) +
+  labs(x = NULL, fill = NULL) +
+  scale_fill_brewer(palette = "Set1") +
+  theme(legend.position = c(.8, .8))
+```
+
+
+---
+# Neues Modell mit Transformation (2)
+
+```{r}
+m2 <- lm(y_trans ~ x, data = df)
+
+```
+
+```{r, echo=FALSE}
+rbind(
+  broom::glance(m1),
+  broom::glance(m2)
+) %>% 
+  mutate(model = c("m1", "m2")) %>% 
+  select(model, r.squared, sigma)
+```
+
+
+---
+class: center, middle, inverse
+
+# Fortsetzung praktisches Beispiel
+
+
+
+
+---
+# Transformieren der abhängigen Variable
+
+```{r, fig.width=6, fig.height=2.5}
+bc <- car::boxCox(model,plotit = FALSE)
+(best.lambda <- bc$x[which(bc$y == max(bc$y))])
+
 Salaries$salary_t <- transform_box_cox(Salaries$salary, best.lambda)
 ```
 
-```{r, echo=FALSE, fig.height=4}
+```{r, echo=FALSE, fig.height=3}
 Salaries %>% 
   pivot_longer(starts_with("salary")) %>% 
   ggplot(aes(value)) +
@@ -209,12 +266,14 @@ Salaries %>%
 ```
 
 ---
-# Neue Folie
+# Neues Modell
 
 ```{r}
 new_model <- lm(salary_t ~ rank + yrs.service + yrs.since.phd + 
                   discipline, data = Salaries)
-summary(new_model)
+broom::tidy(summary(new_model))
+
+broom::glance(summary(new_model))
 
 ```
 
@@ -232,11 +291,24 @@ plot(new_model, 2)
 
 
 ---
-# Varianz der Residuen
-
+# Marginale Veränderung
 ```{r}
-summary(model)$sigma
-summary(new_model)$sigma
+coef(new_model)[["yrs.service"]]
+``` 
+
+
+```{r, echo=FALSE}
+expand_grid(
+  rank = "AsstProf",
+  discipline = "A", 
+  yrs.since.phd = 10,
+  yrs.service = 1:40
+) %>% 
+  broom::augment(new_model, newdata = .) %>% 
+  ggplot(aes(yrs.service, .fitted)) +
+  geom_line()
+
+
 ```
 
 
