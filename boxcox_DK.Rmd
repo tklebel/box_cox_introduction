@@ -1,0 +1,72 @@
+---
+title: "boxcox_referat_DK"
+output: html_document
+---
+
+# Motivation
+
+Verletzung der **Annahme B4** im Regressionsmodell.
+
+B4: "(Normalverteilung) Die Störgrößen $u_t$ sind normalverteilt."
+
+
+---
+
+# Nicht-normalverteiltes Regressionsmodell
+
+Datensatz 'Salaries' (aus dem Package 'car')
+``` {r}
+library(car)
+data(Salaries)
+head(Salaries)
+hist(Salaries$salary)
+
+```
+
+Regressionsmodell: 
+$$salary =\beta_0 + \beta_1 * rank + \beta_2 * yrs.service + \beta_3 * yrs.since.phd + \beta_4 * discipline + \epsilon $$
+
+
+```{r}
+data(Salaries)
+head(Salaries)
+model <- lm(salary ~ rank + yrs.service + yrs.since.phd + discipline, data = Salaries)
+summary(model)
+
+```
+
+Überprüfung der Normalverteilung im Modell:
+QQ-Plot: visualisiert die theoretische Position der Residuen, unter der Annahme der Normalverteilung, und stellt diese als Gerade dar. Darauf werden die beobachteten Residuen des Modells gelegt. Normalverteilung herrscht, wenn die beobachteten Residuen auf der Geraden liegen.   
+
+```{r}
+plot(model, 2)
+```
+
+QQ-Plot suggeriert die Nicht-Normalverteilung der Residuen im Modell. 
+Verschiedene Tests untersuchen ebenfalls die Normalverteilung (z.B. Shapiro-Wilks-Test, Jarque-Bera-Test), mit der Nullhypothese, dass die Daten normalverteilt sind.
+
+
+---
+
+# Praktisches Beispiel - Box-Cox-Transformation in R
+
+Funktion: *boxcox()* aus dem package: MASS.
+-> Zeigt standardmäßig via MLS berechnete \lambda Werte im 95% Konfidenzintervall.
+
+```{r}
+library(MASS)
+bc <- boxcox(model)
+best.lambda <- bc$x[which(bc$y==max(bc$y))]
+best.lambda
+```
+
+Nun wird die abhängige Variable Y mit dem durch das ermittelte Lambda transformiert. 
+$$ \lambda = -0.79 $$
+```{r}
+new_model <- lm(((salary)^-0.79) ~ rank+ yrs.service + yrs.since.phd + discipline, data = Salaries)
+summary(new_model)
+plot(new_model,2)
+```
+
+QQ-Plot zeigt die verbesserte Normalverteilung der Residuen bei transformiertem Y. 
+
