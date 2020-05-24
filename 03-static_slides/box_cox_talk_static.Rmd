@@ -282,24 +282,15 @@ wie $log(Y)$
 - Alternativ: Vorhersage für plausible $X_i$ und Re-Transformierung der Vorhersage
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=4, fig.width=7}
-pdata <- data.frame(x = 1:50) %>% 
+pdata <- data.frame(x = 1:100) %>% 
   broom::augment(m2, newdata = .) %>% 
   mutate(.fitted_trans = (.fitted * best.lambda + 1)^(1/best.lambda),
          marginal_diff = lead(.fitted_trans) - .fitted_trans)
 
-library(patchwork)
-p1 <- pdata %>% 
+pdata %>% 
   ggplot(aes(x, .fitted_trans)) +
   geom_line() +
   geom_point() 
-
-p2 <- pdata %>% 
-  ggplot(aes(x, marginal_diff)) +
-  geom_line() +
-  geom_point() +
-  labs(y = "Marginale Veränderung in Y")
-
-p1 + p2
 ```
 
 
@@ -373,5 +364,9 @@ plot(new_model, 2, caption = NA, main = "Modell 2 (new_model)")
 ]
 
 
+---
+# Slides und Code
+
+https://github.com/tklebel/box_cox_introduction
 
 
