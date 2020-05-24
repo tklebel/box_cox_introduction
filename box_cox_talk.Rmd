@@ -1,6 +1,5 @@
 ---
 title: "Box-Cox Transformationen"
-subtitle: "Untertitel???"
 author: "Thomas Klebel & Daniel Kreimer"
 date: "2020-05-26"
 output:
@@ -28,12 +27,25 @@ data(Salaries)
 ```
 
 
+# Agenda
 
+- Problemstellung anhand eines praktischen Beispiels
+  - Regressionsmodell
+  - QQ-Plot
+- Grundlagen der Transformation
+  - Berechnung von $\lambda$
+  - Auswirkung auf die Residuen
+  - Interpretation
+- Anwendung der Transformation auf das praktische Beispiel
+
+
+
+---
 # Motivation
 
-Verletzung der **Annahme B4** im Regressionsmodell: 
+Verletzung der Normalverteilungsannahme im Regressionsmodell: 
 
-- B4: "(Normalverteilung) Die Störgrößen $u_t$ sind normalverteilt."
+- "Die Störgrößen $u_t$ sind normalverteilt." (von Auer 2005:413)
 
 ```{r, echo=FALSE, fig.height=4.5, fig.width=8}
 ggplot(Salaries, aes(salary)) +
@@ -43,14 +55,6 @@ ggplot(Salaries, aes(salary)) +
 
 
 
----
-# Box-Cox-Modell als Heuristik
-
-
-> We shall choose $\lambda$ partly in the light of the information provided by the data and partly from general considerations of simplicity, ease of interpretation, etc. For instance, it would be quite possible for the formal analysis to show that say $\sqrt{y}$ is the best scale for normality and constancy of variance, but for us to decide that there are compelling arguments of ease of interpretation for working say with $log(y)$. [...] the method developed below for finding a transformation is useful as a guide, but is, of course, not to be followed blindly. (p.213)
-
-Ziel der Transformation:
-> The [Box-Cox-Transformation] seeks to achieve simultaneously a model with (a) simple structure for the expectations, (b) constant variance and (c) normal distributions. (p. 226)
 
 ---
 
@@ -95,7 +99,7 @@ plot(model, 2)
 ---
 class: center, middle, inverse
 
-# Mathematische Grundlagen der Transformation
+# Grundlagen der Transformation
 
 
 ---
@@ -131,7 +135,7 @@ set.seed(202005)
 
 ```{r}
 # Simluierte Werte
-df <- data.frame(y = rchisq(n = 500, df = 8))
+df <- data.frame(y = rchisq(n = 500, df = 5))
 ```
 
 
@@ -148,7 +152,7 @@ ggplot(df, aes(y)) +
 ---
 
 # Vergleich der Verteilungen (2)
-![](test.gif)
+![](dist_change.gif)
 
 
 
@@ -176,8 +180,12 @@ ggplot(df, aes(x, y)) +
 
 ```{r}
 m1 <- lm(y ~ x, data = df)
-summary(m1)
 ```
+
+```{r, fig.width=7, fig.height=4, echo=FALSE}
+plot(m1, 2, caption = NA, main = "Modell 1 (m1)")
+```
+
 
 
 ---
@@ -215,7 +223,7 @@ df %>%
   ggplot(aes(value, fill = name)) +
   geom_density(alpha = .5) +
   labs(x = NULL, fill = NULL) +
-  scale_fill_brewer(palette = "Set1") +
+  scale_fill_manual(values = c(y = "#377eb8", y_trans = "#e41a1c")) +
   theme(legend.position = c(.8, .8))
 ```
 
@@ -225,17 +233,56 @@ df %>%
 
 ```{r}
 m2 <- lm(y_trans ~ x, data = df)
-
 ```
 
 ```{r, echo=FALSE}
-rbind(
-  broom::glance(m1),
-  broom::glance(m2)
-) %>% 
-  mutate(model = c("m1", "m2")) %>% 
-  select(model, r.squared, sigma)
+par(mar = c(2, 2, 1.5, 2))
 ```
+
+.pull-left[
+```{r, fig.width=4, fig.height=4, echo=FALSE}
+plot(m1, 2, caption = NA, main = "Modell 1 (m1)")
+```
+]
+
+.pull-right[
+```{r, fig.width=4, fig.height=4, echo=FALSE}
+plot(m2, 2, caption = NA, main = "Modell 2 (m2)")
+```
+]
+
+
+
+---
+# Interpretation
+
+- Direkte Interpretation der Koeffizienten schwierig, außer für bekannte Fälle
+wie $log(Y)$
+- Alternativ: Vorhersage für plausible $x_i$ und Re-Transformierung der Vorhersage
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=4, fig.width=7}
+pdata <- data.frame(x = 1:50) %>% 
+  broom::augment(m2, newdata = .) %>% 
+  mutate(.fitted_trans = (.fitted * best.lambda + 1)^(1/best.lambda),
+         marginal_diff = lead(.fitted_trans) - .fitted_trans)
+
+library(patchwork)
+p1 <- pdata %>% 
+  ggplot(aes(x, .fitted_trans)) +
+  geom_line() +
+  geom_point() 
+
+p2 <- pdata %>% 
+  ggplot(aes(x, marginal_diff)) +
+  geom_line() +
+  geom_point() +
+  labs(y = "Marginale Veränderung in Y")
+
+p1 + p2
+```
+
+
+
 
 
 ---
@@ -243,14 +290,21 @@ class: center, middle, inverse
 
 # Fortsetzung praktisches Beispiel
 
+---
+# Box-Cox-Modell als Heuristik
 
 
+
+> We shall choose $\lambda$ partly in the light of the information provided by the data and partly from general considerations of simplicity, ease of interpretation, etc. For instance, it would be quite possible for the formal analysis to show that say $\sqrt{y}$ is the best scale for normality and constancy of variance, but for us to decide that there are compelling arguments of ease of interpretation for working say with $log(y)$. [...] the method developed below for finding a transformation is useful as a guide, but is, of course, not to be followed blindly. (Box and Cox 1964:213)
+
+
+Box, G. E. P., and D. R. Cox. 1964. “An Analysis of Transformations.” Journal of the Royal Statistical Society. Series B (Methodological) 26 (2): 211–52.
 
 ---
 # Transformieren der abhängigen Variable
 
 ```{r, fig.width=6, fig.height=2.5}
-bc <- car::boxCox(model,plotit = FALSE)
+bc <- car::boxCox(model, plotit = FALSE)
 (best.lambda <- bc$x[which(bc$y == max(bc$y))])
 
 Salaries$salary_t <- transform_box_cox(Salaries$salary, best.lambda)
@@ -285,31 +339,17 @@ Verbesserte Normalverteilung der Residuen bei transformiertem Y.
 par(mar = c(2, 2, 1.5, 2))
 ```
 
-```{r, fig.width=6, fig.height=4}
-plot(new_model, 2)
+.pull-left[
+```{r, fig.width=4, fig.height=4, echo=FALSE}
+plot(model, 2, caption = NA, main = "Modell 1 (model)")
 ```
+]
 
-
----
-# Marginale Veränderung
-```{r}
-coef(new_model)[["yrs.service"]]
-``` 
-
-
-```{r, echo=FALSE}
-expand_grid(
-  rank = "AsstProf",
-  discipline = "A", 
-  yrs.since.phd = 10,
-  yrs.service = 1:40
-) %>% 
-  broom::augment(new_model, newdata = .) %>% 
-  ggplot(aes(yrs.service, .fitted)) +
-  geom_line()
-
-
+.pull-right[
+```{r, fig.width=4, fig.height=4, echo=FALSE}
+plot(new_model, 2, caption = NA, main = "Modell 2 (new_model)")
 ```
+]
 
 
 
