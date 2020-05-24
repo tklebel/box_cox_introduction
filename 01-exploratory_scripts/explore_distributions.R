@@ -79,7 +79,7 @@ df %>%
 
 # try with gganimate
 library(gganimate)
-df <- data.frame(y = rchisq(n = 500, df = 8))
+df <- data.frame(y = rchisq(n = 500, df = 5))
 transform_box_cox <- function(y, lambda) {
   (y ^ lambda - 1)/lambda
 }
@@ -122,4 +122,34 @@ animate(anim, nframes = 400, duration = 20, end_pause = 0,
 animate(anim, nframes = 500, duration = 20, end_pause = 0,
         start_pause = 10, rewind = TRUE, height = 5, width = 9, units = "in",
         res = 300)
-save_animation(file = "test")
+save_animation(file = "dist_change")
+
+
+# create static figure
+library(tidyverse)
+library(ggtext)
+
+transform_box_cox <- function(y, lambda) {
+  (y ^ lambda - 1)/lambda
+}
+
+set.seed(202005)
+df <- tibble(y = rchisq(n = 500, df = 5))
+
+df <- df %>%
+  mutate(lambda = list(seq(-2, 2, by = .5))) %>%
+  unnest(lambda) %>%
+  mutate(y_trans = case_when(lambda == 0 ~ log(y),
+                             TRUE ~ transform_box_cox(y, lambda)))
+
+ggplot(df, aes(y_trans)) +
+  geom_density(fill = "#e41a1c", alpha = .5) +
+  geom_density(aes(y), fill = "#377eb8", alpha = .5) +
+  facet_wrap(~lambda, scales = "free_y") +
+  coord_cartesian(xlim = c(0, 40)) +
+  theme_bw() +
+  theme(plot.subtitle = element_markdown()) +
+  labs(title = "Transformation von Y in Abhängigkeit von Lambda",
+       subtitle = "<span style='color:#377eb8'>Originale</span> vs. <span style='color:#e41a1c'>transformierte</span> Variable", x = NULL, y = "Dichte")
+
+

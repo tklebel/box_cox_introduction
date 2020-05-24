@@ -19,7 +19,7 @@ par(mar = c(2, 2, 1.5, 2))
 
 
 library(tidyverse)
-library(gganimate)
+library(ggtext)
 theme_set(theme_bw())
 
 library(car)
@@ -152,7 +152,28 @@ ggplot(df, aes(y)) +
 ---
 
 # Vergleich der Verteilungen (2)
-![](dist_change.gif)
+```{r, echo=FALSE, fig.height=5, fig.width=8}
+transform_box_cox <- function(y, lambda) {
+  (y ^ lambda - 1)/lambda
+}
+
+df2 <- df %>%
+  mutate(lambda = list(seq(-2, 2, by = .5))) %>%
+  unnest(lambda) %>%
+  mutate(y_trans = case_when(lambda == 0 ~ log(y),
+                             TRUE ~ transform_box_cox(y, lambda)))
+
+ggplot(df2, aes(y_trans)) +
+  geom_density(fill = "#e41a1c", alpha = .5) +
+  geom_density(aes(y), fill = "#377eb8", alpha = .5) +
+  facet_wrap(~lambda, scales = "free_y") +
+  coord_cartesian(xlim = c(0, 40)) +
+  theme_bw() +
+  theme(plot.subtitle = element_markdown()) +
+  labs(title = "Transformation von Y in Abhängigkeit von Lambda",
+       subtitle = "<span style='color:#377eb8'>Originale</span> vs. <span style='color:#e41a1c'>transformierte</span> Variable", x = NULL, y = "Dichte")
+```
+
 
 
 
@@ -258,7 +279,7 @@ plot(m2, 2, caption = NA, main = "Modell 2 (m2)")
 
 - Direkte Interpretation der Koeffizienten schwierig, außer für bekannte Fälle
 wie $log(Y)$
-- Alternativ: Vorhersage für plausible $x_i$ und Re-Transformierung der Vorhersage
+- Alternativ: Vorhersage für plausible $X_i$ und Re-Transformierung der Vorhersage
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=4, fig.width=7}
 pdata <- data.frame(x = 1:50) %>% 
